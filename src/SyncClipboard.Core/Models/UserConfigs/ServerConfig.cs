@@ -2,10 +2,13 @@ namespace SyncClipboard.Core.Models.UserConfigs;
 
 public record class ServerConfig
 {
+    public const ushort DefaultPort = 5033;
+
     public bool SwitchOn { get; set; } = false;
-    public ushort Port { get; set; } = 5033;
+    public ushort Port { get; set; } = DefaultPort;
     public string UserName { get; set; } = "admin";
     public string Password { get; set; } = "admin";
+    public bool EnableLocalDiscovery { get; set; } = false;
     public bool EnableHttps { get; set; } = false;
     public string CertificatePemPath { get; set; } = string.Empty;
     public string CertificatePemKeyPath { get; set; } = string.Empty;
@@ -13,4 +16,6 @@ public record class ServerConfig
     public string CustomConfigurationFilePath { get; set; } = string.Empty;
     public uint MaxHistoryCount { get; set; } = 1000;
     public uint HistoryRetentionMinutes { get; set; } = 10080;
+
+    public ushort EffectivePort => EnableLocalDiscovery ? DefaultPort : Port;
 }

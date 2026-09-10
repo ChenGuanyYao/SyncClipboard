@@ -123,6 +123,12 @@
   <data name="Server" xml:space="preserve">
     <value>Server</value>
   </data>
+  <data name="LocalNetworkDiscovery" xml:space="preserve">
+    <value>Local Network Discovery</value>
+  </data>
+  <data name="LocalNetworkDiscoveryDescription" xml:space="preserve">
+    <value>Uses the default port 5033 so nearby devices can discover this sync service. Cannot be used with a custom server configuration.</value>
+  </data>
   <data name="SystemSettings" xml:space="preserve">
     <value>Settings</value>
   </data>

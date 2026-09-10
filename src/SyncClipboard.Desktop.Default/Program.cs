@@ -29,10 +29,7 @@ class Program
         }
         catch (Exception e)
         {
-            var path = Path.Combine(Env.LogFolder, $"{DateTime.Now:yyyy-MM-dd HH-mm-ss}.dmp");
-            File.WriteAllText(path + ".txt", $"UnhandledException {e.GetType()} {e.Message} \n{e.StackTrace}");
-            App.Current?.Logger?.Write($"UnhandledException {e.GetType()} {e.Message} \n {e.StackTrace}");
-            App.Current?.AppCore?.Stop();
+            SafeWriteUnhandledExceptionLog(e);
             return (int)ReturnCode.UnhandledException;
         }
 
@@ -54,4 +51,28 @@ class Program
             {
                 DefaultFamilyName = $"{Font("MiSans")}",
             });
+
+    private static void SafeWriteUnhandledExceptionLog(Exception exception)
+    {
+        try
+        {
+            Directory.CreateDirectory(Env.LogFolder);
+            var path = Path.Combine(Env.LogFolder, $"{DateTime.Now:yyyy-MM-dd HH-mm-ss}.dmp");
+            File.WriteAllText(path + ".txt", $"UnhandledException {exception.GetType()} {exception.Message} \n{exception.StackTrace}");
+        }
+        catch
+        {
+            // 崩溃日志只是辅助信息，写日志失败时不能掩盖真正的启动异常。
+        }
+
+        try
+        {
+            App.Current?.Logger?.Write($"UnhandledException {exception.GetType()} {exception.Message} \n {exception.StackTrace}");
+            App.Current?.AppCore?.Stop();
+        }
+        catch
+        {
+            // 应用已处于异常退出路径，避免清理阶段继续抛错。
+        }
+    }
 }

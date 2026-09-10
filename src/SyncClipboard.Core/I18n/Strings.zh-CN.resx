@@ -123,6 +123,12 @@
   <data name="Server" xml:space="preserve">
     <value>服务器</value>
   </data>
+  <data name="LocalNetworkDiscovery" xml:space="preserve">
+    <value>局域网自动发现</value>
+  </data>
+  <data name="LocalNetworkDiscoveryDescription" xml:space="preserve">
+    <value>固定使用默认端口 5033，局域网设备可自动发现本机同步服务。不可与自定义服务器配置同时使用。</value>
+  </data>
   <data name="SystemSettings" xml:space="preserve">
     <value>系统设置</value>
   </data>

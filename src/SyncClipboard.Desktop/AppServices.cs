@@ -44,7 +44,12 @@ public class AppServices
         }
         else if (OperatingSystem.IsMacOS())
         {
+            // 原生 macOS 入口会在自己的 AppServices 中覆盖这些实现；通用入口打包时没有那层注册，
+            // 因此先提供可运行的桌面默认实现，避免缺少窗口、热键和前台检测服务导致启动闪退。
             services.AddSingleton<IClipboardFingerprintProvider, MacOSClipboardFingerprintProvider>();
+            services.AddSingleton<ICaretPositionProvider, FakeCaretPositionProvider>();
+            services.AddSingleton<IForegroundWindowInfoProvider, FakeForegroundWindowInfoProvider>();
+            services.AddSingleton<IMousePositionProvider, FakeMousePositionProvider>();
         }
         else if (OperatingSystem.IsWindows())
         {
@@ -82,14 +87,11 @@ public class AppServices
             services.AddSingleton<IMousePositionProvider, FakeMousePositionProvider>();
         }
 
-        if (!OperatingSystem.IsMacOS())
-        {
-            services.AddSingleton<IMainWindow, MainWindow>();
-            services.AddSingleton<INativeHotkeyRegistry, SharpHookHotkeyRegistry>();
-            services.AddSingleton<IForegroundWindowWatcher, PollingForegroundWindowWatcher>();
-            services.AddSingleton<IClipboardOwnerProvider, ClipboardOwnerProvider>();
-            services.AddKeyedSingleton<IWindow, HistoryWindow>("HistoryWindow");
-        }
+        services.AddSingleton<IMainWindow, MainWindow>();
+        services.AddSingleton<INativeHotkeyRegistry, SharpHookHotkeyRegistry>();
+        services.AddSingleton<IForegroundWindowWatcher, PollingForegroundWindowWatcher>();
+        services.AddSingleton<IClipboardOwnerProvider, ClipboardOwnerProvider>();
+        services.AddKeyedSingleton<IWindow, HistoryWindow>("HistoryWindow");
     }
 
     public static ServiceCollection ConfigureServices()

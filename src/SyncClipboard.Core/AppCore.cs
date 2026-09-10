@@ -287,14 +287,7 @@ namespace SyncClipboard.Core
             services.AddQuartz();
             services.AddSingleton<IScheduler>(sp => sp.GetRequiredService<ISchedulerFactory>().GetScheduler().GetAwaiter().GetResult());
             services.AddTransient<AppInstance>();
-            services.AddSingleton(sp => ManagerFactory.GetNotificationManager(
-                new NativeNotificationOption
-                {
-                    AppName = Env.SoftName,
-                    RemoveNotificationOnContentClick = false,
-                    AppIcon = Path.Combine(Env.ProgramDirectory, "Assets", "icon.svg")
-                }
-            ));
+            services.AddSingleton(CreateNotificationManager);
             services.AddKeyedSingleton<INotification>("ProfileNotification", (sp, key) => sp.GetRequiredService<INotificationManager>().Create());
             services.AddSingleton<ProfileNotificationHelper>();
 
@@ -305,6 +298,28 @@ namespace SyncClipboard.Core
             services.AddSingleton<LocalClipboardSetter>();
             services.AddSingleton<ProfileActionBuilder>();
             services.AddSingleton<IProfileEnv, ClientProfileEnvProvider>();
+        }
+
+        private static INotificationManager CreateNotificationManager(IServiceProvider sp)
+        {
+            try
+            {
+                return ManagerFactory.GetNotificationManager(
+                    new NativeNotificationOption
+                    {
+                        AppName = Env.SoftName,
+                        RemoveNotificationOnContentClick = false,
+                        AppIcon = Path.Combine(Env.ProgramDirectory, "Assets", "icon.svg")
+                    }
+                );
+            }
+            catch (NotSupportedException ex)
+            {
+                // Desktop.Default 在 macOS 上是 net8.0 通用入口，NativeNotification 的 macOS 实现只支持 net10.0-macos。
+                // 这里降级为空通知，保证剪贴板同步、HTTP 服务和发现能力继续工作，不让系统通知能力阻断主流程。
+                sp.GetService<Interfaces.ILogger>()?.Write(LOG_TAG, $"Native notification is disabled: {ex.Message}");
+                return new NoopNotificationManager();
+            }
         }
 
         public static void ConfigurateViewModels(IServiceCollection services)

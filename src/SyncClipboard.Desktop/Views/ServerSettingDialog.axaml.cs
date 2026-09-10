@@ -31,6 +31,12 @@ namespace SyncClipboard.Desktop.Views
             set => _UrlTitle.Text = value;
         }
 
+        public bool IsUrlEnabled
+        {
+            get => _Url.IsEnabled;
+            set => _Url.IsEnabled = value;
+        }
+
         public ServerSettingDialog()
         {
             this.InitializeComponent();

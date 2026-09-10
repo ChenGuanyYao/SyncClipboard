@@ -93,7 +93,8 @@ public partial class ServerConfigPage : UserControl
             TextBoxName = Strings.Port,
             Password = _viewModel.ServerConfig.Password,
             UserName = _viewModel.ServerConfig.UserName,
-            Url = _viewModel.ServerConfig.Port.ToString()
+            Url = _viewModel.ServerConfig.EffectivePort.ToString(),
+            IsUrlEnabled = _viewModel.IsServerPortEditable
         };
         var dialog = new ContentDialog
         {

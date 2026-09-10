@@ -3025,6 +3025,24 @@ namespace SyncClipboard.Core.I18n {
                 return ResourceManager.GetString("Server", resourceCulture);
             }
         }
+
+        /// <summary>
+        ///   查找类似 Local Network Discovery 的本地化字符串。
+        /// </summary>
+        public static string LocalNetworkDiscovery {
+            get {
+                return ResourceManager.GetString("LocalNetworkDiscovery", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   查找类似 Uses the default port 5033 so nearby devices can discover this sync service. Cannot be used with a custom server configuration. 的本地化字符串。
+        /// </summary>
+        public static string LocalNetworkDiscoveryDescription {
+            get {
+                return ResourceManager.GetString("LocalNetworkDiscoveryDescription", resourceCulture);
+            }
+        }
         
         /// <summary>
         ///   查找类似 Server Address 的本地化字符串。

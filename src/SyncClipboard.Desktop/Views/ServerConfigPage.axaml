@@ -45,13 +45,18 @@
                     </StackPanel>
                 </ui:SettingsExpanderItem.Footer>
             </ui:SettingsExpanderItem>
+            <ui:SettingsExpanderItem Content="{x:Static i18n:Strings.LocalNetworkDiscovery}" Description="{x:Static i18n:Strings.LocalNetworkDiscoveryDescription}">
+                <ui:SettingsExpanderItem.Footer>
+                    <ToggleSwitch OnContent="{x:Static i18n:Strings.On}" OffContent="{x:Static i18n:Strings.Off}" IsChecked="{Binding EnableLocalDiscovery, Mode=TwoWay}" IsEnabled="{Binding IsLocalDiscoveryEnabled}" />
+                </ui:SettingsExpanderItem.Footer>
+            </ui:SettingsExpanderItem>
             <ui:SettingsExpanderItem Content="{x:Static i18n:Strings.EnableCustomConfigurationFile}" Description="{x:Static i18n:Strings.CustomConfigFileDescription}">
                 <ui:SettingsExpanderItem.Footer>
                     <StackPanel Orientation="Horizontal" Spacing="12">
                         <Button Command="{Binding OpenCustomConfigDescLinkCommand}">
                             <ui:FontIcon Glyph="&#xE9CE;" FontFamily="{StaticResource SymbolThemeFontFamily}" />
                         </Button>
-                        <ToggleSwitch OnContent="{x:Static i18n:Strings.On}" OffContent="{x:Static i18n:Strings.Off}" IsChecked="{Binding EnableCustomConfigurationFile, Mode=TwoWay}" />
+                        <ToggleSwitch OnContent="{x:Static i18n:Strings.On}" OffContent="{x:Static i18n:Strings.Off}" IsChecked="{Binding EnableCustomConfigurationFile, Mode=TwoWay}" IsEnabled="{Binding IsCustomConfigurationFileEnabled}" />
                     </StackPanel>
                 </ui:SettingsExpanderItem.Footer>
             </ui:SettingsExpanderItem>
