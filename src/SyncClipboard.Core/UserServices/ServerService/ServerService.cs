@@ -10,7 +10,9 @@ namespace SyncClipboard.Core.UserServices.ServerService;
 
 public class ServerService : Service
 {
-    Microsoft.AspNetCore.Builder.WebApplication? app;
+    private readonly SemaphoreSlim _lifecycleSemaphore = new(1, 1);
+    private Microsoft.AspNetCore.Builder.WebApplication? _app;
+    private ServerDiscoveryResponder? discoveryResponder;
     public readonly static string SERVICE_NAME = I18n.Strings.Server;
     public const string LOG_TAG = "INNERSERVER";
 
@@ -50,7 +52,7 @@ public class ServerService : Service
         _serverConfig = _configManager.GetConfig<ServerConfig>();
         _programConfig = _configManager.GetConfig<ProgramConfig>();
         _contextMenu.AddMenuItem(_toggleMenuItem, SyncService.ContextMenuGroupName);
-        RestartServer();
+        RequestServerRestart();
     }
 
     private void ConfigChanged(ServerConfig config)
@@ -58,7 +60,7 @@ public class ServerService : Service
         if (config != _serverConfig)
         {
             _serverConfig = config;
-            RestartServer();
+            RequestServerRestart();
         }
     }
 
@@ -67,35 +69,59 @@ public class ServerService : Service
         if (config.DiagnoseMode != _programConfig.DiagnoseMode)
         {
             _programConfig = config;
-            RestartServer();
+            RequestServerRestart();
         }
     }
 
-    public async void RestartServer()
+    private void RequestServerRestart()
     {
-        _toggleMenuItem.Checked = _serverConfig.SwitchOn;
-        StopSerivce();
-        if (_serverConfig.SwitchOn)
+        // 配置更新可能连续发生；由同一把锁串行化启停，避免旧实例尚未释放端口时启动新实例。
+        _ = RestartServerAsync();
+    }
+
+    private async Task RestartServerAsync()
+    {
+        await _lifecycleSemaphore.WaitAsync();
+        try
         {
+            var serverConfig = _serverConfig;
+            var programConfig = _programConfig;
+            _toggleMenuItem.Checked = serverConfig.SwitchOn;
+            await StopServerCoreAsync();
+            if (!serverConfig.SwitchOn)
+            {
+                return;
+            }
+
             try
             {
-                app = await Web.StartAsync(
+                var app = await Web.StartAsync(
                     new ServerPara(
-                        _serverConfig.Port,
+                        serverConfig.EffectivePort,
                         Env.AppDataDirectory,
-                        _serverConfig.UserName,
-                        _serverConfig.Password,
-                        _serverConfig.EnableHttps,
-                        _serverConfig.CertificatePemPath,
-                        _serverConfig.CertificatePemKeyPath,
-                        _serverConfig.EnableCustomConfigurationFile,
-                        _serverConfig.CustomConfigurationFilePath,
-                        _programConfig.DiagnoseMode,
-                        _serverConfig.MaxHistoryCount,
-                        _serverConfig.HistoryRetentionMinutes,
+                        serverConfig.UserName,
+                        serverConfig.Password,
+                        serverConfig.EnableHttps,
+                        serverConfig.CertificatePemPath,
+                        serverConfig.CertificatePemKeyPath,
+                        serverConfig.EnableCustomConfigurationFile,
+                        serverConfig.CustomConfigurationFilePath,
+                        programConfig.DiagnoseMode,
+                        serverConfig.MaxHistoryCount,
+                        serverConfig.HistoryRetentionMinutes,
                         _serviceProvider
                     )
                 );
+
+                ServerDiscoveryResponder? responder = null;
+                if (serverConfig.EnableLocalDiscovery)
+                {
+                    responder = new ServerDiscoveryResponder(serverConfig, _logger);
+                    responder.Start();
+                }
+
+                _app = app;
+                discoveryResponder = responder;
                 _trayIcon.SetStatusString(SERVICE_NAME, "Running.", false);
             }
             catch (Exception ex)
@@ -105,13 +131,50 @@ public class ServerService : Service
                 NotificationManager.ShowText(I18n.Strings.FailedToStartServer, ex.Message);
             }
         }
+        finally
+        {
+            _lifecycleSemaphore.Release();
+        }
     }
 
     protected override void StopSerivce()
     {
+        _ = StopServerAsync();
+    }
+
+    private async Task StopServerAsync()
+    {
+        await _lifecycleSemaphore.WaitAsync();
+        try
+        {
+            await StopServerCoreAsync();
+        }
+        finally
+        {
+            _lifecycleSemaphore.Release();
+        }
+    }
+
+    private async Task StopServerCoreAsync()
+    {
         _trayIcon.SetStatusString(SERVICE_NAME, "Stopped.");
-        var oldApp = app;
-        app = null;
-        Task.Run(() => oldApp?.StopAsync());
+        var oldApp = _app;
+        var oldDiscoveryResponder = discoveryResponder;
+        _app = null;
+        discoveryResponder = null;
+        oldDiscoveryResponder?.Stop();
+        if (oldApp is not null)
+        {
+            try
+            {
+                await oldApp.StopAsync();
+                await oldApp.DisposeAsync();
+            }
+            catch (Exception ex)
+            {
+                // 停止失败也必须释放生命周期锁，让后续配置变更能够重新尝试启动并显示真实错误。
+                await _logger.WriteAsync(LOG_TAG, $"Failed to stop embedded server: {ex}");
+            }
+        }
     }
 }

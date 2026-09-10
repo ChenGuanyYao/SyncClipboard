@@ -28,8 +28,14 @@ public partial class ServerConfigViewModel : ObservableObject
     partial void OnCertificatePemKeyPathChanged(string value) => ServerConfig = ServerConfig with { CertificatePemKeyPath = value };
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsLocalDiscoveryEnabled))]
     private bool enableCustomConfigurationFile;
-    partial void OnEnableCustomConfigurationFileChanged(bool value) => ServerConfig = ServerConfig with { EnableCustomConfigurationFile = value };
+    partial void OnEnableCustomConfigurationFileChanged(bool value) => ServerConfig = ServerConfig with
+    {
+        EnableCustomConfigurationFile = value,
+        // 自定义 Kestrel 配置无法可靠推导监听端点，不能与固定端口的自动发现同时启用。
+        EnableLocalDiscovery = value ? false : ServerConfig.EnableLocalDiscovery
+    };
 
     public static readonly IEnumerable<string> CustomConfigurationFileTypes = [".json"];
     [ObservableProperty]
@@ -55,7 +61,22 @@ public partial class ServerConfigViewModel : ObservableObject
     private ServerConfig serverConfig = new();
     partial void OnServerConfigChanged(ServerConfig value)
     {
+        if (value.EnableLocalDiscovery && value.EnableCustomConfigurationFile)
+        {
+            // 兼容历史配置：两项同时开启时优先保留自定义服务器配置，关闭发现避免返回错误地址。
+            ServerConfig = value with { EnableLocalDiscovery = false };
+            return;
+        }
+
+        if (value.EnableLocalDiscovery && value.Port != ServerConfig.DefaultPort)
+        {
+            // 开启局域网自动发现时必须固定端口，避免手机端发现到的地址和实际监听端口不一致。
+            ServerConfig = value with { Port = ServerConfig.DefaultPort };
+            return;
+        }
+
         ServerEnable = value.SwitchOn;
+        EnableLocalDiscovery = value.EnableLocalDiscovery;
         EnableHttps = value.EnableHttps;
         CertificatePemPath = value.CertificatePemPath;
         CertificatePemKeyPath = value.CertificatePemKeyPath;
@@ -67,6 +88,8 @@ public partial class ServerConfigViewModel : ObservableObject
 
         OnPropertyChanged(nameof(ShowHttpsConfig));
         OnPropertyChanged(nameof(ShowHttpsCertConfig));
+        OnPropertyChanged(nameof(IsLocalDiscoveryEnabled));
+        OnPropertyChanged(nameof(IsCustomConfigurationFileEnabled));
     }
 
     #endregion
@@ -74,15 +97,39 @@ public partial class ServerConfigViewModel : ObservableObject
     #region view properties
     public bool ShowHttpsConfig => !EnableCustomConfigurationFile;
     public bool ShowHttpsCertConfig => EnableHttps && !EnableCustomConfigurationFile;
+    public bool IsServerPortEditable => !EnableLocalDiscovery;
+    public bool IsLocalDiscoveryEnabled => !EnableCustomConfigurationFile;
+    public bool IsCustomConfigurationFileEnabled => !EnableLocalDiscovery;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ServerConfigDescription))]
+    [NotifyPropertyChangedFor(nameof(IsServerPortEditable))]
+    [NotifyPropertyChangedFor(nameof(IsCustomConfigurationFileEnabled))]
+    private bool enableLocalDiscovery;
+    partial void OnEnableLocalDiscoveryChanged(bool value)
+    {
+        var next = ServerConfig with
+        {
+            EnableLocalDiscovery = value,
+            EnableCustomConfigurationFile = value ? false : ServerConfig.EnableCustomConfigurationFile
+        };
+        if (value)
+        {
+            next = next with { Port = ServerConfig.DefaultPort };
+        }
+
+        ServerConfig = next;
+    }
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(ServerConfigDescription))]
     public bool showServerPassword = false;
 
     public string ServerConfigDescription =>
-@$"{I18n.Strings.Port}{new string('\t', int.Parse(I18n.Strings.PortTabRepeat))}: {ServerConfig.Port}
+@$"{I18n.Strings.Port}{new string('\t', int.Parse(I18n.Strings.PortTabRepeat))}: {ServerConfig.EffectivePort}
 {I18n.Strings.UserName}{new string('\t', int.Parse(I18n.Strings.UserNameTabRepeat))}: {ServerConfig.UserName}
-{I18n.Strings.Password}{new string('\t', int.Parse(I18n.Strings.PasswordTabRepeat))}: {GetPasswordString(ServerConfig.Password, ShowServerPassword)}";
+{I18n.Strings.Password}{new string('\t', int.Parse(I18n.Strings.PasswordTabRepeat))}: {GetPasswordString(ServerConfig.Password, ShowServerPassword)}
+{I18n.Strings.LocalNetworkDiscovery}: {(ServerConfig.EnableLocalDiscovery ? I18n.Strings.On : I18n.Strings.Off)}";
 
     private static string GetPasswordString(string origin, bool? show)
     {
@@ -99,6 +146,7 @@ public partial class ServerConfigViewModel : ObservableObject
         _configManager.ListenConfig<ServerConfig>(config => ServerConfig = config);
         serverConfig = _configManager.GetConfig<ServerConfig>();
         serverEnable = serverConfig.SwitchOn;
+        enableLocalDiscovery = serverConfig.EnableLocalDiscovery;
         enableHttps = serverConfig.EnableHttps;
         certificatePemPath = serverConfig.CertificatePemPath;
         certificatePemKeyPath = serverConfig.CertificatePemKeyPath;
@@ -110,7 +158,8 @@ public partial class ServerConfigViewModel : ObservableObject
 
     public string? SetServerConfig(string portString, string username, string password)
     {
-        if (!ushort.TryParse(portString, out var port))
+        var port = ServerConfig.DefaultPort;
+        if (!ServerConfig.EnableLocalDiscovery && !ushort.TryParse(portString, out port))
         {
             return I18n.Strings.PortRangeIs;
         }
